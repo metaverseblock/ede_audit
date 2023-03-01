@@ -346,17 +346,10 @@ contract VaultUtils is IVaultUtils, Ownable {
         // uint256 reserveDelta = 
         if (vault.baseMode() == 1){
             return vault.usdToTokenMax(_collateralToken, _sizeUSD);
-            // if (_isLong){
-            //     // require(_collateralToken == _indexToken, "colToken must be indexToken");
-            //     return vault.usdToTokenMax(_collateralToken, _sizeDelta);
-            // }else{
-            //     // require(_collateralToken == _indexToken, "colToken must be indexToken");
-            //     return vault.usdToTokenMax(_collateralToken, _sizeDelta);
-            // }
         }
         else if (vault.baseMode() == 2){
             // require(_position.maxProfitRatio <= )
-            require(maxProfitRatio > 0, "max profit ration not set");
+            require(maxProfitRatio > 0, "max profit not set");
             uint256 resvUSD = _takeProfitRatio > 0 ? _takeProfitRatio : maxProfitRatio;
             return vault.usdToTokenMax(_collateralToken, resvUSD);
         }
@@ -430,24 +423,17 @@ contract VaultUtils is IVaultUtils, Ownable {
         }
     }
 
-    // function getDecreaseNextAveragePrice(uint256 _size, uint256 _averagePrice, uint256 _markPrice, uint256 _sizeDelta) public pure override returns (uint256) {
-    //     uint256 _latestSize = _size > _sizeDelta ? _size.sub(_sizeDelta) : 0;
-    //     return _latestSize > 0 ? (_averagePrice.mul(_size).sub(_sizeDelta.mul(_markPrice))).div(_latestSize): 0;
-    // }
+    function getInitialPosition(address _account, address _collateralToken, address _indexToken, uint256 _sizeDelta, bool _isLong, uint256 _price) public override view returns (VaultMSData.Position memory){
+        VaultMSData.Position memory position;
+        position.account = _account;
+        position.averagePrice = _price;
+        position.aveIncreaseTime = block.timestamp;
+        position.collateralToken = _collateralToken;
+        position.indexToken = _indexToken;
+        position.isLong = _isLong;
+        return position;
+    }
 
-    // for longs: nextAveragePrice = (nextPrice * nextSize)/ (nextSize + delta)
-    // for shorts: nextAveragePrice = (nextPrice * nextSize) / (nextSize - delta)
-    // function getPositionNextAveragePrice(address _indexToken, uint256 _size, uint256 _averagePrice, bool _isLong, uint256 _nextPrice, uint256 _sizeDelta, uint256 _lastIncreasedTime) public override pure returns (uint256) {
-        // (bool hasProfit, uint256 delta) = getDelta(_indexToken, _size, _averagePrice,_isLong, _lastIncreasedTime);
-        // uint256 nextSize = _size.add(_sizeDelta);
-        // uint256 divisor;
-        // if (_isLong) {
-        //     divisor = hasProfit ? nextSize.add(delta) : nextSize.sub(delta);
-        // } else {
-        //     divisor = hasProfit ? nextSize.sub(delta) : nextSize.add(delta);
-        // }
-        // return _nextPrice.mul(nextSize).div(divisor);
-    // }
     function getPositionNextAveragePrice(uint256 _size, uint256 _averagePrice, uint256 _nextPrice, uint256 _sizeDelta, bool _isIncrease) public override pure returns (uint256) {
         // (bool hasProfit, uint256 delta) = getDelta(_indexToken, _size, _averagePrice,_isLong, _lastIncreasedTime);
         // uint256 nextSize = _size.add(_sizeDelta);

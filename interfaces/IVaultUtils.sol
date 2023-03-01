@@ -19,7 +19,7 @@ interface IVaultUtils {
     function getImpactedPrice(address _token, uint256 _sizeDelta, uint256 _price, bool _isLong) external view returns (uint256);
 
     function getReserveDelta(address _collateralToken, uint256 _sizeUSD, uint256 _colUSD, uint256 _takeProfitRatio) external view returns (uint256);
-   
+    function getInitialPosition(address _account, address _collateralToken, address _indexToken, uint256 _sizeDelta, bool _isLong, uint256 _price) external view returns (VaultMSData.Position memory);
     function getDelta(address _indexToken, uint256 _size, uint256 _averagePrice, bool _isLong, uint256 _lastIncreasedTime, uint256 _colSize) external view returns (bool, uint256);
     function updateRate(address _token) external view returns (VaultMSData.TradingFee memory);
     function getPremiumFee(VaultMSData.Position memory _position, VaultMSData.TradingFee memory _tradingFee) external view returns (int256);

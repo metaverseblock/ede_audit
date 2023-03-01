@@ -240,11 +240,10 @@ contract Vault is ReentrancyGuard, IVault, Ownable {
     //---------------------------------------- TRADING FUNCTIONS --------------------------------------------------
     function swap(address _tokenIn,  address _tokenOut, address _receiver ) external override nonReentrant returns (uint256) {
         _validate(isSwapEnabled, 23);
-        _validate(approvedRouters[msg.sender], 6);
         return _swap(_tokenIn, _tokenOut, _receiver );
     }
 
-    /// ATTENTION : Not open for users in current version
+    /// ATTENTION : Not open in current version
     // function editRatio(bytes32 _key, uint256 _lossRatio, uint256 _profitRatio) public nonReentrant{
     //     _validate(approvedRouters[msg.sender], 5);
     //     VaultMSData.Position storage position = positions[_key];
@@ -272,7 +271,7 @@ contract Vault is ReentrancyGuard, IVault, Ownable {
             position.aveIncreaseTime = block.timestamp;
             position.collateralToken = _collateralToken;
             position.indexToken = _indexToken;
-            position.isLong = _isLong;
+            position.isLong = _isLong;       
         }
         else if (position.size > 0 && _sizeDelta > 0) {
             position.aveIncreaseTime = vaultUtils.getNextIncreaseTime(position.aveIncreaseTime, position.size, _sizeDelta); 
@@ -283,16 +282,15 @@ contract Vault is ReentrancyGuard, IVault, Ownable {
         position.collateral = position.collateral.add(collateralDeltaUsd);
         position.accCollateral = position.accCollateral.add(collateralDeltaUsd);
         _increaseGuaranteedUsd(_collateralToken, collateralDeltaUsd);
-        _increasePoolAmount(_collateralToken,  collateralDelta);
+        _increasePoolAmount(_collateralToken,  collateralDelta);//aum = pool + aveProfit - guaranteedUsd
         
         //call updateRate before collect Margin Fees
-        int256 fee = _collectMarginFees(key, _sizeDelta);
+        int256 fee = _collectMarginFees(key, _sizeDelta); //increase collateral before collectMarginFees
         position.lastUpdateTime = block.timestamp;//attention: after _collectMarginFees
         
         // run after collectMarginFees
-        // set entry rate to latest after calling collect margin fees
         position.entryFundingRateSec = tradingFee[_collateralToken].accumulativefundingRateSec;
-        position.entryPremiumRateSec = _isLong ? tradingFee[_collateralToken].accumulativeLongRateSec : tradingFee[_collateralToken].accumulativeShortRateSec;
+        position.entryPremiumRateSec = _isLong ? tradingFee[_indexToken].accumulativeLongRateSec : tradingFee[_indexToken].accumulativeShortRateSec;
 
         position.size = position.size.add(_sizeDelta);
         _validate(position.size > 0, 30);
@@ -342,11 +340,10 @@ contract Vault is ReentrancyGuard, IVault, Ownable {
             if (reserveDelta > 0) _increaseReservedAmount(position.collateralToken, reserveDelta);
             position.reserveAmount = reserveDelta;//position.reserveAmount.sub(reserveDelta);
         }
-
         updateRate(position.collateralToken);
         if (position.indexToken!= position.collateralToken) updateRate(position.indexToken); 
 
-        // collect funding fee in _reduceCollateral function
+        // _collectMarginFees runs inside _reduceCollateral
         (uint256 usdOut, uint256 usdOutAfterFee) = _reduceCollateral(key, _collateralDelta, _sizeDelta);
         
         // update global trading size and average prie
@@ -355,12 +352,12 @@ contract Vault is ReentrancyGuard, IVault, Ownable {
         // update position entry rate
         position.lastUpdateTime = block.timestamp;  //attention: MUST run after _collectMarginFees (_reduceCollateral)
         position.entryFundingRateSec = tradingFee[position.collateralToken].accumulativefundingRateSec;
-        position.entryPremiumRateSec = position.isLong ? tradingFee[position.collateralToken].accumulativeLongRateSec : tradingFee[position.collateralToken].accumulativeShortRateSec;
-
+        position.entryPremiumRateSec = position.isLong ? tradingFee[position.indexToken].accumulativeLongRateSec : tradingFee[position.indexToken].accumulativeShortRateSec;
 
         bool _del = false;
         // scrop variables to avoid stack too deep errors
         {
+            //do not add spread price impact in decrease position
             uint256 price = position.isLong ? getMinPrice(position.indexToken) : getMaxPrice(position.indexToken);
             emit DecreasePosition( key, position, _collateralDelta, _sizeDelta, price, int256(usdOut) - int256(usdOutAfterFee), usdOut, position.collateral, collateral);
             if (position.size != _sizeDelta) {
@@ -383,9 +380,6 @@ contract Vault is ReentrancyGuard, IVault, Ownable {
 
         if (usdOutAfterFee > 0) {
             uint256 tkOutAfterFee = 0;
-            // if (_isLong) {
-            //     _decreasePoolAmount(_collateralToken, usdToTokenMin(_collateralToken, usdOut) );
-            // }
             tkOutAfterFee = usdToTokenMin(position.collateralToken, usdOutAfterFee);
             emit DecreasePositionTransOut(key, tkOutAfterFee);
             _transferOut(position.collateralToken, tkOutAfterFee, position.account);
@@ -613,7 +607,7 @@ contract Vault is ReentrancyGuard, IVault, Ownable {
             // if (!position.isLong) {
             uint256 tokenAmount = usdToTokenMin(position.collateralToken, profitUsdOut);
             _decreasePoolAmount(position.collateralToken, tokenAmount);
-            _decreaseGuaranteedUsd(position.collateralToken, profitUsdOut);
+            // _decreaseGuaranteedUsd(position.collateralToken, profitUsdOut);
         }
         else if (!hasProfit && adjustedDelta > 0) {
             position.collateral = position.collateral.sub(adjustedDelta);
